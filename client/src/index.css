@@ -1,0 +1,203 @@
+/* src/index.css */
+@import "tailwindcss";
+
+/* Custom base styles */
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+    color: #ffffff;
+    overflow-x: hidden;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+}
+
+/* Custom animations */
+@keyframes pulse-aggressive {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+@keyframes pump {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+@keyframes barbell-lift {
+  0% { transform: translateY(0px) rotate(0deg); }
+  25% { transform: translateY(-15px) rotate(-1deg); }
+  50% { transform: translateY(-25px) rotate(0deg); }
+  75% { transform: translateY(-15px) rotate(1deg); }
+  100% { transform: translateY(0px) rotate(0deg); }
+}
+
+@keyframes neon-flicker {
+  0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
+    opacity: 1;
+    text-shadow: 
+      0 0 5px currentColor,
+      0 0 10px currentColor,
+      0 0 15px currentColor,
+      0 0 20px currentColor;
+  }
+  20%, 24%, 55% {
+    opacity: 0.9;
+    text-shadow: none;
+  }
+}
+
+/* Custom utility classes */
+@layer utilities {
+  .bg-savage-black {
+    background: #0a0a0a;
+  }
+
+  .bg-savage-gradient {
+    background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+  }
+
+  .bg-savage-steel {
+    background: #1a1a1a;
+  }
+
+  .text-savage-neon-blue {
+    color: #00f5ff;
+  }
+
+  .text-savage-neon-green {
+    color: #39ff14;
+  }
+
+  .text-savage-neon-orange {
+    color: #ff6b35;
+  }
+
+  .text-savage-neon-purple {
+    color: #8a2be2;
+  }
+
+  .glow-blue {
+    box-shadow: 0 0 20px rgba(0, 245, 255, 0.5);
+  }
+
+  .glow-green {
+    box-shadow: 0 0 20px rgba(57, 255, 20, 0.5);
+  }
+
+  .glow-orange {
+    box-shadow: 0 0 20px rgba(255, 107, 53, 0.5);
+  }
+
+  .glow-purple {
+    box-shadow: 0 0 20px rgba(138, 43, 226, 0.5);
+  }
+
+  .animate-pulse-aggressive {
+    animation: pulse-aggressive 2s ease-in-out infinite;
+  }
+
+  .animate-pump {
+    animation: pump 0.5s ease-in-out;
+  }
+
+  .animate-barbell-lift {
+    animation: barbell-lift 3s ease-in-out infinite;
+  }
+
+  .animate-neon-flicker {
+    animation: neon-flicker 1.5s infinite;
+  }
+}
+
+/* Custom component classes (direct CSS - not using @layer components) */
+.btn-neon {
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  font-weight: bold;
+  border-radius: 0.5rem;
+  transition: all 0.3s;
+  transform: scale(1);
+}
+
+.btn-neon:hover {
+  transform: scale(1.05);
+}
+
+.btn-neon-blue {
+  background-color: #00f5ff;
+  color: #0a0a0a;
+}
+
+.btn-neon-blue:hover {
+  box-shadow: 0 0 20px rgba(0, 245, 255, 0.5);
+}
+
+.btn-neon-green {
+  background-color: #39ff14;
+  color: #0a0a0a;
+}
+
+.btn-neon-green:hover {
+  box-shadow: 0 0 20px rgba(57, 255, 20, 0.5);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.75rem;
+}
+
+/* SCROLLBAR STYLING */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(45deg, #00f5ff, #39ff14);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(45deg, #ff6b35, #8a2be2);
+}
+
+/* SELECTION STYLING */
+::selection {
+  background: #00f5ff;
+  color: #0a0a0a;
+}
+
+::-moz-selection {
+  background: #00f5ff;
+  color: #0a0a0a;
+}
+
+/* FOCUS STYLES */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid #00f5ff;
+  outline-offset: 2px;
+}
