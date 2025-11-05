@@ -15,11 +15,11 @@ console.log('🔧 NODE_ENV:', process.env.NODE_ENV);
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// 🚀 VERCEL-OPTIMIZED CORS CONFIGURATION
+// 🚀 FIXED CORS CONFIGURATION
 app.use(cors({
   origin: [
     'http://localhost:5173',
-    'https://fitai-tracker-zqh8.vercel.app/',
+    'https://fitai-tracker-zqh8.vercel.app', // REMOVED TRAILING SLASH
     process.env.FRONTEND_URL || ''
   ].filter(Boolean),
   credentials: true,
@@ -29,7 +29,9 @@ app.use(cors({
 
 app.use(express.json());
 
-// 🚀 FIXED: VERCEL-OPTIMIZED MONGODB CONNECTION
+// 🚀 FIXED: SERVERLESS-OPTIMIZED MONGODB CONNECTION
+let cachedConnection: typeof mongoose | null = null;
+
 const connectDB = async () => {
   try {
     console.log('🔧 Attempting MongoDB connection...');
@@ -39,28 +41,38 @@ const connectDB = async () => {
       throw new Error('MONGODB_URI is not defined');
     }
 
-    console.log('🔧 MONGODB_URI length:', process.env.MONGODB_URI.length);
+    // Use cached connection if available and connected
+    if (cachedConnection && cachedConnection.connection.readyState === 1) {
+      console.log('✅ Using cached MongoDB connection');
+      return cachedConnection;
+    }
+
+    console.log('🔧 Creating new MongoDB connection...');
     
-    // 🚀 FIXED: OPTIMIZED FOR VERCEL + ATLAS
-  await mongoose.connect(process.env.MONGODB_URI, {
-  maxPoolSize: 5, // Reduced for serverless
-  minPoolSize: 0, // Important for serverless
-  serverSelectionTimeoutMS: 15000, // 15 seconds
-  socketTimeoutMS: 45000,
-  connectTimeoutMS: 15000,
-  bufferCommands: false,
-  // Remove bufferMaxEntries - it's deprecated in newer Mongoose versions
-});
+    // 🚀 SERVERLESS-OPTIMIZED CONNECTION
+    cachedConnection = await mongoose.connect(process.env.MONGODB_URI, {
+      maxPoolSize: 10,
+      minPoolSize: 0,
+      serverSelectionTimeoutMS: 30000,
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 30000,
+      bufferCommands: false,
+    });
     
     console.log('✅ MongoDB connected successfully');
     
+    // Event handlers for connection monitoring
     mongoose.connection.on('error', (error) => {
-      console.error('❌ MongoDB connection error event:', error);
+      console.error('❌ MongoDB connection error:', error);
+      cachedConnection = null;
     });
     
     mongoose.connection.on('disconnected', () => {
-      console.log('⚠️ MongoDB disconnected event');
+      console.log('⚠️ MongoDB disconnected');
+      cachedConnection = null;
     });
+    
+    return cachedConnection;
     
   } catch (error: any) {
     console.error('❌ MongoDB connection FAILED:');
@@ -68,14 +80,12 @@ const connectDB = async () => {
     console.error('❌ Error message:', error.message);
     console.error('❌ Error code:', error.code);
     
-    // Don't exit process in serverless environment
-    if (process.env.NODE_ENV !== 'production') {
-      process.exit(1);
-    }
+    cachedConnection = null;
+    throw error;
   }
 };
 
-// 🚀 GLOBAL ERROR HANDLERS FOR SERVERLESS
+// 🚀 GLOBAL ERROR HANDLERS
 process.on('unhandledRejection', (err) => {
   console.error('❌ Unhandled Promise Rejection:', err);
 });
@@ -88,13 +98,26 @@ process.on('uncaughtException', (err) => {
 });
 
 // Routes
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    message: 'FitAI Tracker Server is running!',
-    database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
-  });
+app.get('/api/health', async (req, res) => {
+  try {
+    const dbState = mongoose.connection.readyState;
+    const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
+    
+    res.json({ 
+      message: 'FitAI Tracker Server is running!',
+      database: {
+        state: states[dbState],
+        connected: dbState === 1
+      },
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development'
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      message: 'Server error',
+      database: 'Error checking connection'
+    });
+  }
 });
 
 // Import and use routes
@@ -155,7 +178,26 @@ app.get('/api/protected', requireAuth, (req: AuthRequest, res) => {
   });
 });
 
-// 🔥 FIXED DEBUG ROUTE
+// Database test route
+app.get('/api/test-db', async (req, res) => {
+  try {
+    await connectDB();
+    const userCount = await User.countDocuments();
+    
+    res.json({
+      database: 'Connected',
+      userCount,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      database: 'Connection failed',
+      error: error.message
+    });
+  }
+});
+
+// 🔥 DEBUG ROUTE
 app.get('/api/debug/simple', requireAuth, attachUser, async (req: AuthRequest, res) => {
   try {
     console.log('=== 🔍 SIMPLE DEBUG ===');
@@ -204,13 +246,13 @@ const startServer = async () => {
   try {
     await connectDB();
     
-    if (process.env.NODE_ENV !== 'production' || process.env.VERCEL !== '1') {
-      app.listen(PORT, () => {
-        console.log(`🚀 Server running on port ${PORT}`);
-      });
-    } else {
-      console.log('✅ Server configured for Vercel serverless environment');
-    }
+    // Always start server in both environments
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🌐 CORS enabled for frontend`);
+    });
+    
   } catch (error) {
     console.error('❌ Failed to start server:', error);
     if (process.env.NODE_ENV !== 'production') {
