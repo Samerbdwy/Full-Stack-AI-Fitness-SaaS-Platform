@@ -8,6 +8,10 @@ import recoveryRoutes from './routes/recovery';
 
 dotenv.config();
 
+// Debug environment variables
+console.log('🔧 Environment check - MONGODB_URI exists:', !!process.env.MONGODB_URI);
+console.log('🔧 NODE_ENV:', process.env.NODE_ENV);
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -15,7 +19,7 @@ const PORT = process.env.PORT || 5000;
 app.use(cors({
   origin: [
     'http://localhost:5173',
-    'https://your-frontend-app.vercel.app', // Replace with your actual frontend URL
+    'https://your-frontend-app.vercel.app',
     process.env.FRONTEND_URL || ''
   ].filter(Boolean),
   credentials: true,
@@ -25,33 +29,43 @@ app.use(cors({
 
 app.use(express.json());
 
-// 🚀 VERCEL-OPTIMIZED MONGODB CONNECTION
+// 🚀 VERCEL-OPTIMIZED MONGODB CONNECTION WITH BETTER LOGGING
 const connectDB = async () => {
   try {
+    console.log('🔧 Attempting MongoDB connection...');
+    
     if (!process.env.MONGODB_URI) {
-      throw new Error('MONGODB_URI is not defined in environment variables');
+      console.error('❌ MONGODB_URI is undefined in environment variables');
+      throw new Error('MONGODB_URI is not defined');
     }
+
+    console.log('🔧 MONGODB_URI length:', process.env.MONGODB_URI.length);
     
     // Serverless-friendly connection settings
-     await mongoose.connect(process.env.MONGODB_URI, {
-      maxPoolSize: 10, // Optimized for serverless
-      serverSelectionTimeoutMS: 5000,
+    await mongoose.connect(process.env.MONGODB_URI, {
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 10000, // Increased timeout
       socketTimeoutMS: 45000,
-      bufferCommands: false, // Disable buffering for serverless
+      bufferCommands: false,
     });
     
     console.log('✅ MongoDB connected successfully');
     
     mongoose.connection.on('error', (error) => {
-      console.error('❌ MongoDB connection error:', error);
+      console.error('❌ MongoDB connection error event:', error);
     });
     
     mongoose.connection.on('disconnected', () => {
-      console.log('⚠️ MongoDB disconnected');
+      console.log('⚠️ MongoDB disconnected event');
     });
     
-  } catch (error) {
-    console.error('❌ MongoDB connection error:', error);
+  } catch (error: any) {
+    console.error('❌ MongoDB connection FAILED:');
+    console.error('❌ Error name:', error.name);
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error code:', error.code);
+    console.error('❌ Full error details:', JSON.stringify(error, null, 2));
+    
     // Don't exit process in serverless environment
     if (process.env.NODE_ENV !== 'production') {
       process.exit(1);
@@ -66,7 +80,6 @@ process.on('unhandledRejection', (err) => {
 
 process.on('uncaughtException', (err) => {
   console.error('❌ Uncaught Exception:', err);
-  // In production, we don't want to exit the process
   if (process.env.NODE_ENV !== 'production') {
     process.exit(1);
   }
@@ -91,8 +104,6 @@ import clerkPaymentRoutes from './routes/clerkPayments';
 import { User } from './models/User';
 import { Goal } from './models/Goal';
 import { Streak } from './models/Streak';
-
-// Import the auth middleware
 import { requireAuth, attachUser, AuthRequest } from './middleware/auth';
 
 // 🚀 USE ALL ROUTES
@@ -108,7 +119,6 @@ app.use('/api/recovery', recoveryRoutes);
 // Test user creation route (disable in production if needed)
 app.post('/api/create-test-user', async (req, res) => {
   try {
-    // Optional: Disable in production for security
     if (process.env.NODE_ENV === 'production') {
       return res.status(403).json({ error: 'Test user creation disabled in production' });
     }
@@ -143,19 +153,14 @@ app.get('/api/protected', requireAuth, (req: AuthRequest, res) => {
   });
 });
 
-// 🔥 FIXED DEBUG ROUTE - Using Mongoose models instead of native driver
+// 🔥 FIXED DEBUG ROUTE
 app.get('/api/debug/simple', requireAuth, attachUser, async (req: AuthRequest, res) => {
   try {
     console.log('=== 🔍 SIMPLE DEBUG ===');
-    console.log('User making request:', req.user!.clerkUserId, req.user!.email);
     
-    // Get current user's data using Mongoose models
     const userGoals = await Goal.find({ clerkUserId: req.user!.clerkUserId });
     const userStreak = await Streak.findOne({ clerkUserId: req.user!.clerkUserId });
     
-    console.log('User goals count:', userGoals.length);
-    console.log('User streak:', userStreak ? userStreak.currentStreak : 'none');
-
     res.json({
       user: {
         id: req.user!.clerkUserId,
@@ -170,53 +175,6 @@ app.get('/api/debug/simple', requireAuth, attachUser, async (req: AuthRequest, r
     });
   } catch (error) {
     console.error('Simple debug error:', error);
-    res.status(500).json({ error: 'Debug failed' });
-  }
-});
-
-// 🔥 ENHANCED DEBUG ROUTE - Shows all database state
-app.get('/api/debug/full', requireAuth, attachUser, async (req: AuthRequest, res) => {
-  try {
-    // Optional: Disable in production for security
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(403).json({ error: 'Full debug disabled in production' });
-    }
-
-    console.log('=== 🐛 FULL DEBUG ===');
-    console.log('Request from user:', req.user!.clerkUserId, req.user!.email);
-    
-    // Get current user's data
-    const currentUserGoals = await Goal.find({ clerkUserId: req.user!.clerkUserId });
-    const currentUserStreak = await Streak.findOne({ clerkUserId: req.user!.clerkUserId });
-    
-    // Get ALL data from database (for debugging only)
-    const allUsers = await User.find({}).select('clerkUserId email name');
-    const allGoals = await Goal.find({}).select('clerkUserId text');
-    const allStreaks = await Streak.find({}).select('clerkUserId currentStreak');
-
-    res.json({
-      currentUser: {
-        clerkUserId: req.user!.clerkUserId,
-        email: req.user!.email,
-        name: req.user!.name
-      },
-      currentUserData: {
-        goals: currentUserGoals.length,
-        streak: currentUserStreak ? currentUserStreak.currentStreak : 0,
-        goalsList: currentUserGoals.map(g => ({ text: g.text, completed: g.completed }))
-      },
-      databaseState: {
-        totalUsers: allUsers.length,
-        totalGoals: allGoals.length,
-        totalStreaks: allStreaks.length,
-        allUsers: allUsers.map(u => ({ email: u.email, clerkUserId: u.clerkUserId })),
-        allGoals: allGoals.map(g => ({ clerkUserId: g.clerkUserId, text: g.text })),
-        allStreaks: allStreaks.map(s => ({ clerkUserId: s.clerkUserId, streak: s.currentStreak }))
-      },
-      environment: process.env.NODE_ENV || 'development'
-    });
-  } catch (error) {
-    console.error('Debug route error:', error);
     res.status(500).json({ error: 'Debug failed' });
   }
 });
@@ -239,42 +197,14 @@ app.use((error: any, req: express.Request, res: express.Response, next: express.
   });
 });
 
-// Graceful shutdown (primarily for non-serverless environments)
-process.on('SIGINT', async () => {
-  console.log('🛑 Shutting down server...');
-  await mongoose.connection.close();
-  process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-  console.log('🛑 SIGTERM received, shutting down gracefully...');
-  await mongoose.connection.close();
-  process.exit(0);
-});
-
 // Start server
 const startServer = async () => {
   try {
     await connectDB();
     
-    // Only listen in non-serverless environments
     if (process.env.NODE_ENV !== 'production' || process.env.VERCEL !== '1') {
       app.listen(PORT, () => {
         console.log(`🚀 Server running on port ${PORT}`);
-        console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-        console.log(`🌐 Health check: http://localhost:${PORT}/api/health`);
-        console.log(`👤 User routes: http://localhost:${PORT}/api/users`);
-        console.log(`📊 Dashboard routes: http://localhost:${PORT}/api/dashboard`);
-        console.log(`🔗 Webhook routes: http://localhost:${PORT}/api/webhooks`);
-        console.log(`💳 Payment routes: http://localhost:${PORT}/api/payments`);
-        console.log(`💳 Clerk Payment routes: http://localhost:${PORT}/api/clerk-payments`);
-        console.log(`🍽️ Food log routes: http://localhost:${PORT}/api/food-logs`);
-        console.log(`💪 Workout routes: http://localhost:${PORT}/api/workouts`);
-        console.log(`🧘 Recovery routes: http://localhost:${PORT}/api/recovery`);
-        console.log(`🧪 Test user route: http://localhost:${PORT}/api/create-test-user`);
-        console.log(`🔐 Protected route: http://localhost:${PORT}/api/protected`);
-        console.log(`🐛 Simple debug: http://localhost:${PORT}/api/debug/simple`);
-        console.log(`🐛 Full debug: http://localhost:${PORT}/api/debug/full`);
       });
     } else {
       console.log('✅ Server configured for Vercel serverless environment');
