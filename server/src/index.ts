@@ -29,7 +29,7 @@ app.use(cors({
 
 app.use(express.json());
 
-// 🚀 VERCEL-OPTIMIZED MONGODB CONNECTION WITH BETTER LOGGING
+// 🚀 FIXED: VERCEL-OPTIMIZED MONGODB CONNECTION
 const connectDB = async () => {
   try {
     console.log('🔧 Attempting MongoDB connection...');
@@ -41,13 +41,16 @@ const connectDB = async () => {
 
     console.log('🔧 MONGODB_URI length:', process.env.MONGODB_URI.length);
     
-    // Serverless-friendly connection settings
-    await mongoose.connect(process.env.MONGODB_URI, {
-      maxPoolSize: 10,
-      serverSelectionTimeoutMS: 10000, // Increased timeout
-      socketTimeoutMS: 45000,
-      bufferCommands: false,
-    });
+    // 🚀 FIXED: OPTIMIZED FOR VERCEL + ATLAS
+  await mongoose.connect(process.env.MONGODB_URI, {
+  maxPoolSize: 5, // Reduced for serverless
+  minPoolSize: 0, // Important for serverless
+  serverSelectionTimeoutMS: 15000, // 15 seconds
+  socketTimeoutMS: 45000,
+  connectTimeoutMS: 15000,
+  bufferCommands: false,
+  // Remove bufferMaxEntries - it's deprecated in newer Mongoose versions
+});
     
     console.log('✅ MongoDB connected successfully');
     
@@ -64,7 +67,6 @@ const connectDB = async () => {
     console.error('❌ Error name:', error.name);
     console.error('❌ Error message:', error.message);
     console.error('❌ Error code:', error.code);
-    console.error('❌ Full error details:', JSON.stringify(error, null, 2));
     
     // Don't exit process in serverless environment
     if (process.env.NODE_ENV !== 'production') {
