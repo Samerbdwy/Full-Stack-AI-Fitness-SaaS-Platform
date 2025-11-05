@@ -15,6 +15,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // CORS Configuration
+// CORS Configuration
 app.use(cors({
   origin: [
     'http://localhost:5173',
@@ -23,8 +24,17 @@ app.use(cors({
   ].filter(Boolean),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With',
+    'Cache-Control',
+    'Accept',
+    'Origin'
+  ]
 }));
+
+app.options('*', cors());
 
 app.use(express.json());
 
