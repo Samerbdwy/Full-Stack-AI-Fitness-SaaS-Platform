@@ -8,18 +8,17 @@ import recoveryRoutes from './routes/recovery';
 
 dotenv.config();
 
-// Debug environment variables
 console.log('🔧 Environment check - MONGODB_URI exists:', !!process.env.MONGODB_URI);
 console.log('🔧 NODE_ENV:', process.env.NODE_ENV);
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// 🚀 FIXED CORS CONFIGURATION
+// CORS Configuration
 app.use(cors({
   origin: [
     'http://localhost:5173',
-    'https://fitai-tracker-zqh8.vercel.app', // REMOVED TRAILING SLASH
+    'https://fitai-tracker-zqh8.vercel.app',
     process.env.FRONTEND_URL || ''
   ].filter(Boolean),
   credentials: true,
@@ -29,93 +28,79 @@ app.use(cors({
 
 app.use(express.json());
 
-// 🚀 FIXED: SERVERLESS-OPTIMIZED MONGODB CONNECTION
-let cachedConnection: typeof mongoose | null = null;
-
+// SIMPLE MONGODB CONNECTION
 const connectDB = async () => {
   try {
     console.log('🔧 Attempting MongoDB connection...');
     
     if (!process.env.MONGODB_URI) {
-      console.error('❌ MONGODB_URI is undefined in environment variables');
       throw new Error('MONGODB_URI is not defined');
     }
 
-    // Use cached connection if available and connected
-    if (cachedConnection && cachedConnection.connection.readyState === 1) {
-      console.log('✅ Using cached MongoDB connection');
-      return cachedConnection;
-    }
-
-    console.log('🔧 Creating new MongoDB connection...');
-    
-    // 🚀 SERVERLESS-OPTIMIZED CONNECTION
-    cachedConnection = await mongoose.connect(process.env.MONGODB_URI, {
-      maxPoolSize: 10,
-      minPoolSize: 0,
-      serverSelectionTimeoutMS: 30000,
-      socketTimeoutMS: 45000,
-      connectTimeoutMS: 30000,
-      bufferCommands: false,
-    });
+    // Simple connection without complex options
+    await mongoose.connect(process.env.MONGODB_URI);
     
     console.log('✅ MongoDB connected successfully');
     
-    // Event handlers for connection monitoring
-    mongoose.connection.on('error', (error) => {
-      console.error('❌ MongoDB connection error:', error);
-      cachedConnection = null;
-    });
-    
-    mongoose.connection.on('disconnected', () => {
-      console.log('⚠️ MongoDB disconnected');
-      cachedConnection = null;
-    });
-    
-    return cachedConnection;
-    
   } catch (error: any) {
-    console.error('❌ MongoDB connection FAILED:');
-    console.error('❌ Error name:', error.name);
-    console.error('❌ Error message:', error.message);
-    console.error('❌ Error code:', error.code);
-    
-    cachedConnection = null;
+    console.error('❌ MongoDB connection FAILED:', error.message);
     throw error;
   }
 };
 
-// 🚀 GLOBAL ERROR HANDLERS
+// Global error handlers
 process.on('unhandledRejection', (err) => {
   console.error('❌ Unhandled Promise Rejection:', err);
 });
 
 process.on('uncaughtException', (err) => {
   console.error('❌ Uncaught Exception:', err);
-  if (process.env.NODE_ENV !== 'production') {
-    process.exit(1);
-  }
 });
 
 // Routes
-app.get('/api/health', async (req, res) => {
+app.get('/api/health', (req, res) => {
+  const dbState = mongoose.connection.readyState;
+  const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
+  
+  res.json({ 
+    message: 'FitAI Tracker Server is running!',
+    database: {
+      state: states[dbState],
+      connected: dbState === 1
+    },
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// 🆕 ADD THIS DEBUG ROUTE
+app.get('/api/debug-db', async (req, res) => {
   try {
-    const dbState = mongoose.connection.readyState;
+    if (mongoose.connection.readyState !== 1) {
+      await connectDB();
+    }
+    
+    const state = mongoose.connection.readyState;
     const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
     
-    res.json({ 
-      message: 'FitAI Tracker Server is running!',
-      database: {
-        state: states[dbState],
-        connected: dbState === 1
-      },
-      timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV || 'development'
+    // Try a simple query
+    const User = require('./models/User').User;
+    const userCount = await User.countDocuments();
+    
+    res.json({
+      connection: states[state],
+      connected: state === 1,
+      userCount,
+      mongoUriExists: !!process.env.MONGODB_URI,
+      environment: process.env.NODE_ENV
     });
-  } catch (error) {
-    res.status(500).json({ 
-      message: 'Server error',
-      database: 'Error checking connection'
+  } catch (error: any) {
+    res.json({
+      connection: 'failed',
+      connected: false,
+      error: error.message,
+      mongoUriExists: !!process.env.MONGODB_URI,
+      environment: process.env.NODE_ENV
     });
   }
 });
@@ -126,12 +111,8 @@ import dashboardRoutes from './routes/dashboard';
 import webhookRoutes from './routes/webhooks';
 import paymentRoutes from './routes/payments';
 import clerkPaymentRoutes from './routes/clerkPayments';
-import { User } from './models/User';
-import { Goal } from './models/Goal';
-import { Streak } from './models/Streak';
-import { requireAuth, attachUser, AuthRequest } from './middleware/auth';
 
-// 🚀 USE ALL ROUTES
+// Use all routes
 app.use('/api/users', userRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/webhooks', webhookRoutes);
@@ -140,88 +121,6 @@ app.use('/api/clerk-payments', clerkPaymentRoutes);
 app.use('/api/food-logs', foodLogRoutes);
 app.use('/api/workouts', workoutRoutes);
 app.use('/api/recovery', recoveryRoutes);
-
-// Test user creation route (disable in production if needed)
-app.post('/api/create-test-user', async (req, res) => {
-  try {
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(403).json({ error: 'Test user creation disabled in production' });
-    }
-
-    const { clerkUserId, email, name } = req.body;
-    
-    const existingUser = await User.findOne({ clerkUserId });
-    if (existingUser) {
-      return res.json({ message: 'User already exists', user: existingUser });
-    }
-
-    const user = await User.create({
-      clerkUserId,
-      email,
-      name,
-    });
-
-    console.log('✅ Test user created:', user.email);
-    res.json({ message: 'Test user created', user });
-  } catch (error) {
-    console.error('Create test user error:', error);
-    res.status(500).json({ error: 'Failed to create test user' });
-  }
-});
-
-// Test protected route
-app.get('/api/protected', requireAuth, (req: AuthRequest, res) => {
-  res.json({ 
-    message: 'This is a protected route!',
-    user: req.user,
-    environment: process.env.NODE_ENV || 'development'
-  });
-});
-
-// Database test route
-app.get('/api/test-db', async (req, res) => {
-  try {
-    await connectDB();
-    const userCount = await User.countDocuments();
-    
-    res.json({
-      database: 'Connected',
-      userCount,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      database: 'Connection failed',
-      error: error.message
-    });
-  }
-});
-
-// 🔥 DEBUG ROUTE
-app.get('/api/debug/simple', requireAuth, attachUser, async (req: AuthRequest, res) => {
-  try {
-    console.log('=== 🔍 SIMPLE DEBUG ===');
-    
-    const userGoals = await Goal.find({ clerkUserId: req.user!.clerkUserId });
-    const userStreak = await Streak.findOne({ clerkUserId: req.user!.clerkUserId });
-    
-    res.json({
-      user: {
-        id: req.user!.clerkUserId,
-        email: req.user!.email
-      },
-      data: {
-        goals: userGoals.length,
-        streak: userStreak ? userStreak.currentStreak : 0,
-        goalsList: userGoals.map(g => g.text)
-      },
-      environment: process.env.NODE_ENV || 'development'
-    });
-  } catch (error) {
-    console.error('Simple debug error:', error);
-    res.status(500).json({ error: 'Debug failed' });
-  }
-});
 
 // 404 handler
 app.use((req, res) => {
@@ -244,24 +143,22 @@ app.use((error: any, req: express.Request, res: express.Response, next: express.
 // Start server
 const startServer = async () => {
   try {
-    await connectDB();
+    // Don't connect DB at startup in serverless
+    if (process.env.NODE_ENV === 'production') {
+      console.log('🚀 Server running in production mode - DB will connect on first request');
+    } else {
+      await connectDB();
+    }
     
-    // Always start server in both environments
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`🌐 CORS enabled for frontend`);
     });
     
   } catch (error) {
     console.error('❌ Failed to start server:', error);
-    if (process.env.NODE_ENV !== 'production') {
-      process.exit(1);
-    }
   }
 };
 
 startServer();
 
-// Export for Vercel serverless
 export default app;
