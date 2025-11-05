@@ -19,7 +19,7 @@ const PORT = process.env.PORT || 5000;
 app.use(cors({
   origin: [
     'http://localhost:5173',
-    'https://your-frontend-app.vercel.app',
+    'https://fitai-tracker-zqh8.vercel.app/',
     process.env.FRONTEND_URL || ''
   ].filter(Boolean),
   credentials: true,
