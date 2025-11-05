@@ -14,8 +14,7 @@ console.log('🔧 NODE_ENV:', process.env.NODE_ENV);
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// CORS Configuration
-// CORS Configuration
+// 🚀 FIXED CORS CONFIGURATION
 app.use(cors({
   origin: [
     'http://localhost:5173',
@@ -38,7 +37,7 @@ app.options('*', cors());
 
 app.use(express.json());
 
-// SIMPLE MONGODB CONNECTION
+// 🚀 FIXED MONGODB CONNECTION
 const connectDB = async () => {
   try {
     console.log('🔧 Attempting MongoDB connection...');
@@ -83,7 +82,16 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// 🆕 ADD THIS DEBUG ROUTE
+// 🆕 CORS TEST ROUTE
+app.get('/api/cors-test', (req, res) => {
+  res.json({
+    message: 'CORS test successful!',
+    timestamp: new Date().toISOString(),
+    origin: req.headers.origin
+  });
+});
+
+// DEBUG ROUTE
 app.get('/api/debug-db', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -150,18 +158,16 @@ app.use((error: any, req: express.Request, res: express.Response, next: express.
   });
 });
 
-// Start server
+// 🚀 FIXED START SERVER - ALWAYS CONNECT TO DATABASE
 const startServer = async () => {
   try {
-    // Don't connect DB at startup in serverless
-    if (process.env.NODE_ENV === 'production') {
-      console.log('🚀 Server running in production mode - DB will connect on first request');
-    } else {
-      await connectDB();
-    }
+    // 🚀 ALWAYS connect to database in both environments
+    await connectDB();
     
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🌐 Database: ${mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'}`);
     });
     
   } catch (error) {
