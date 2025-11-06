@@ -44,4 +44,4 @@
 ---
 
 **Deployment Link:**  
-fitai-tracker-zqh8.vercel.app
+[https://fitai-tracker-zqh8.vercel.app](https://fitai-tracker-zqh8.vercel.app)
