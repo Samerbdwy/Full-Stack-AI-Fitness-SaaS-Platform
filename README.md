@@ -44,5 +44,3 @@ https://www.linkedin.com/posts/samer-badawy-04a709346_ive-developed-fitai-a-full
 
 ---
 
-**Deployment Link:**  
-[https://fitai-tracker-zqh8.vercel.app](https://fitai-tracker-zqh8.vercel.app)
