@@ -38,7 +38,7 @@
 
 ---
 
-**Live Demo:**  
+**Demo:**  
 
 https://www.linkedin.com/posts/samer-badawy-04a709346_ive-developed-fitai-a-full-stack-ai-powered-activity-7392311158633938945-c47A?utm_source=social_share_send&utm_medium=member_desktop_web&rcm=ACoAAFaaMPoBglH9gh9AqHqnsOydFwUSDsoHnOc
 
